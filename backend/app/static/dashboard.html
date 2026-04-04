@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fitbit Segment Dashboard</title>
+  <style>
+    :root {
+      --panel: rgba(255, 250, 242, 0.92);
+      --panel-strong: #fffaf2;
+      --ink: #1e2521;
+      --muted: #5f6a62;
+      --line: rgba(33, 44, 36, 0.12);
+      --accent: #d55d3d;
+      --accent-soft: rgba(213, 93, 61, 0.12);
+      --accent-2: #215f53;
+      --warn: #9c3d2f;
+      --shadow: 0 18px 40px rgba(44, 33, 25, 0.08);
+      --radius: 22px;
+      --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(213, 93, 61, 0.18), transparent 28%),
+        radial-gradient(circle at right 15%, rgba(33, 95, 83, 0.16), transparent 24%),
+        linear-gradient(180deg, #f6f1e8 0%, #efe6d8 100%);
+    }
+
+    .shell {
+      padding: 28px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, rgba(255, 250, 242, 0.95), rgba(248, 239, 225, 0.95));
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      box-shadow: var(--shadow);
+      padding: 24px 26px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .eyebrow {
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent-2);
+      font-weight: 700;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.05;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 900px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .toolbar input,
+    .toolbar button,
+    textarea {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      font: inherit;
+      background: rgba(255, 255, 255, 0.86);
+      color: var(--ink);
+    }
+
+    .toolbar input {
+      min-width: min(360px, 100%);
+      flex: 1 1 280px;
+    }
+
+    button {
+      cursor: pointer;
+      transition: transform 120ms ease, background 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    .primary {
+      background: var(--accent);
+      color: #fff8f3;
+      border-color: transparent;
+    }
+
+    .secondary {
+      background: var(--accent-soft);
+      color: var(--accent-2);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 420px minmax(360px, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      min-height: 220px;
+      backdrop-filter: blur(8px);
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .panel-header h2 {
+      margin: 0;
+    }
+
+    .panel-header span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .list, .grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .item {
+      border: 1px solid rgba(33, 44, 36, 0.1);
+      border-radius: 16px;
+      background: var(--panel-strong);
+      padding: 14px;
+      cursor: pointer;
+      transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+      text-align: left;
+    }
+
+    .item:hover {
+      transform: translateY(-2px);
+      border-color: rgba(213, 93, 61, 0.4);
+      box-shadow: 0 14px 26px rgba(44, 33, 25, 0.08);
+    }
+
+    .item.active {
+      border-color: var(--accent);
+      background: linear-gradient(135deg, rgba(213, 93, 61, 0.12), rgba(255, 250, 242, 0.96));
+    }
+
+    .item-title {
+      font-weight: 700;
+      margin-bottom: 6px;
+      word-break: break-word;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(33, 95, 83, 0.1);
+      color: var(--accent-2);
+    }
+
+    .badge.high {
+      background: rgba(156, 61, 47, 0.12);
+      color: var(--warn);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+    }
+
+    .stat {
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 12px;
+    }
+
+    .stat label {
+      display: block;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .stat strong {
+      font-size: 19px;
+    }
+
+    .code {
+      margin: 0;
+      padding: 14px;
+      border-radius: 16px;
+      background: #1f2623;
+      color: #dce7df;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.55;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .empty {
+      color: var(--muted);
+      line-height: 1.6;
+      padding: 8px 2px;
+    }
+
+    .analysis-box {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(33, 95, 83, 0.08), rgba(255, 250, 242, 0.92));
+      border: 1px solid rgba(33, 95, 83, 0.12);
+    }
+
+    .analysis-box h3 {
+      margin: 0;
+    }
+
+    .analysis-box p, .analysis-box li {
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .status {
+      font-size: 13px;
+      color: var(--muted);
+      min-height: 20px;
+    }
+
+    .segment-toolbar {
+      display: grid;
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    textarea {
+      min-height: 96px;
+      resize: vertical;
+      width: 100%;
+    }
+
+    @media (max-width: 1240px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div class="eyebrow">Fitbit Dify App</div>
+      <h1>数据已经在库里，接下来重点是看懂它。</h1>
+      <p>这个页面直接连接当前 FastAPI 后端。你可以挑选用户，查看 segment 时间线，读取某一段的原始数据和模型输出，并优先查看已经保存的 Dify 分析结果。</p>
+      <div class="toolbar">
+        <input id="searchInput" type="search" placeholder="搜索 external_user_id 或姓名，例如 fitabase_4558609924">
+        <button id="searchButton" class="primary" type="button">搜索用户</button>
+        <button id="refreshButton" class="secondary" type="button">刷新列表</button>
+      </div>
+      <div id="statusLine" class="status">正在加载用户列表...</div>
+    </section>
+
+    <section class="layout">
+      <article class="panel">
+        <div class="panel-header">
+          <h2>用户</h2>
+          <span id="userCountLabel">0 条</span>
+        </div>
+        <div id="userList" class="list"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <h2>时间线</h2>
+          <span id="timelineLabel">未选择用户</span>
+        </div>
+        <div id="profileSummary" class="stats"></div>
+        <div id="timelineList" class="list"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <h2>片段详情</h2>
+          <span id="detailLabel">未选择 segment</span>
+        </div>
+        <div id="detailStats" class="stats"></div>
+        <div class="segment-toolbar">
+          <textarea id="analysisQuery">请解释这一段 Fitbit 数据，并给出个性化建议。</textarea>
+          <button id="analyzeButton" class="primary" type="button" disabled>分析这一段</button>
+        </div>
+        <div id="analysisResult" class="grid"></div>
+        <pre id="detailJson" class="code">选择一条 segment 后，这里会显示原始数据和预测结果。</pre>
+      </article>
+    </section>
+  </div>
+
+  <script>
+    const state = {
+      users: [],
+      selectedUser: null,
+      selectedProfile: null,
+      timeline: [],
+      selectedSegment: null,
+      selectedDetail: null,
+      selectedAnalysis: null,
+    };
+
+    const searchInput = document.getElementById("searchInput");
+    const statusLine = document.getElementById("statusLine");
+    const userCountLabel = document.getElementById("userCountLabel");
+    const userList = document.getElementById("userList");
+    const profileSummary = document.getElementById("profileSummary");
+    const timelineList = document.getElementById("timelineList");
+    const timelineLabel = document.getElementById("timelineLabel");
+    const detailLabel = document.getElementById("detailLabel");
+    const detailStats = document.getElementById("detailStats");
+    const detailJson = document.getElementById("detailJson");
+    const analysisResult = document.getElementById("analysisResult");
+    const analyzeButton = document.getElementById("analyzeButton");
+    const analysisQuery = document.getElementById("analysisQuery");
+
+    function setStatus(message) {
+      statusLine.textContent = message;
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        },
+        ...options,
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Request failed: ${response.status}`);
+      }
+      return response.json();
+    }
+
+    async function apiMaybe(path, options = {}) {
+      const response = await fetch(path, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        },
+        ...options,
+      });
+      if (response.status === 404) {
+        return null;
+      }
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Request failed: ${response.status}`);
+      }
+      return response.json();
+    }
+
+    function normalizeAdvice(value) {
+      if (Array.isArray(value)) {
+        return value
+          .map(item => typeof item === "string" ? item.trim() : "")
+          .filter(Boolean);
+      }
+
+      if (typeof value === "string") {
+        return value
+          .split(/\r?\n+/)
+          .map(item => item.replace(/^\s*[-*•]\s*/, "").trim())
+          .filter(Boolean);
+      }
+
+      return [];
+    }
+
+    function renderUsers() {
+      userCountLabel.textContent = `${state.users.length} 条`;
+      userList.innerHTML = "";
+      if (!state.users.length) {
+        userList.innerHTML = `<div class="empty">没有匹配到用户。</div>`;
+        return;
+      }
+
+      for (const user of state.users) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `item${state.selectedUser?.id === user.id ? " active" : ""}`;
+        button.innerHTML = `
+          <div class="item-title">${user.external_user_id}</div>
+          <div class="meta">
+            ${user.name || "未命名用户"}<br>
+            segments: ${user.segment_count} · timezone: ${user.timezone}<br>
+            latest: ${user.last_segment_at || "n/a"}
+          </div>
+        `;
+        button.addEventListener("click", () => selectUser(user));
+        userList.appendChild(button);
+      }
+    }
+
+    function renderProfileSummary() {
+      profileSummary.innerHTML = "";
+      if (!state.selectedUser || !state.selectedProfile) {
+        profileSummary.innerHTML = `<div class="empty">先选择一个用户。</div>`;
+        return;
+      }
+
+      const profile = state.selectedProfile.profile_json || {};
+      const goals = state.selectedProfile.goals_json || {};
+      const baseline = state.selectedProfile.baseline_stats_json || {};
+      const cards = [
+        ["主要目标", profile.primary_goal || goals.primary_goal || "未设置"],
+        ["活跃水平", profile.activity_level || "未设置"],
+        ["睡眠目标", goals.sleep_goal_hours ? `${goals.sleep_goal_hours} h` : "未设置"],
+        ["平均步数", baseline.avg_daily_steps ?? "未设置"],
+      ];
+
+      for (const [label, value] of cards) {
+        const card = document.createElement("div");
+        card.className = "stat";
+        card.innerHTML = `<label>${label}</label><strong>${value}</strong>`;
+        profileSummary.appendChild(card);
+      }
+    }
+
+    function renderTimeline() {
+      timelineList.innerHTML = "";
+      if (!state.timeline.length) {
+        timelineList.innerHTML = `<div class="empty">这个用户还没有时间线数据。</div>`;
+        return;
+      }
+
+      for (const item of state.timeline) {
+        const badgeClass = item.top_label === "fatigue_high" ? "badge high" : "badge";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `item${state.selectedSegment?.segment_id === item.segment_id ? " active" : ""}`;
+        button.innerHTML = `
+          <div class="item-title">${item.segment_start}</div>
+          <div class="meta">
+            ${item.segment_end}<br>
+            granularity: ${item.granularity}
+          </div>
+          <div style="margin-top:10px;">
+            <span class="${badgeClass}">${item.top_label || "未预测"}</span>
+          </div>
+        `;
+        button.addEventListener("click", () => selectSegment(item));
+        timelineList.appendChild(button);
+      }
+    }
+
+    function renderDetail() {
+      detailStats.innerHTML = "";
+      analysisResult.innerHTML = "";
+      analyzeButton.disabled = !state.selectedSegment;
+
+      if (!state.selectedDetail || !state.selectedSegment) {
+        detailLabel.textContent = "未选择 segment";
+        detailJson.textContent = "选择一条 segment 后，这里会显示原始数据和预测结果。";
+        return;
+      }
+
+      detailLabel.textContent = state.selectedSegment.segment_id;
+      const prediction = state.selectedDetail.predictions?.[0];
+      const raw = state.selectedDetail.raw_payload_json || {};
+      const stats = [
+        ["步数", raw.steps ?? 0],
+        ["睡眠分钟", raw.sleep_minutes ?? 0],
+        ["久坐分钟", raw.sedentary_minutes ?? 0],
+        ["活跃分钟", raw.active_minutes ?? 0],
+        ["主预测", prediction?.top_label || "未预测"],
+        ["预测数", state.selectedDetail.predictions?.length || 0],
+      ];
+
+      for (const [label, value] of stats) {
+        const card = document.createElement("div");
+        card.className = "stat";
+        card.innerHTML = `<label>${label}</label><strong>${value}</strong>`;
+        detailStats.appendChild(card);
+      }
+
+      detailJson.textContent = JSON.stringify(state.selectedDetail, null, 2);
+      if (state.selectedAnalysis) {
+        renderAnalysis();
+      } else {
+        analysisResult.innerHTML = `<div class="empty">这条 segment 还没有历史分析结果，你可以手动点击“分析这一段”。</div>`;
+      }
+    }
+
+    function renderAnalysis() {
+      analysisResult.innerHTML = "";
+      if (!state.selectedAnalysis) {
+        return;
+      }
+
+      const output = state.selectedAnalysis.llm_output || {};
+      const advice = normalizeAdvice(output.personalized_advice);
+      const createdAt = state.selectedAnalysis.created_at ? `<p>保存时间: ${state.selectedAnalysis.created_at}</p>` : "";
+      const box = document.createElement("div");
+      box.className = "analysis-box";
+      box.innerHTML = `
+        <span class="badge ${state.selectedAnalysis.model_output?.top_label === "fatigue_high" ? "high" : ""}">
+          ${state.selectedAnalysis.status}
+        </span>
+        ${createdAt}
+        <h3>Summary</h3>
+        <p>${output.summary || "无 summary"}</p>
+        <h3>Explanation</h3>
+        <p>${output.explanation || output.message || "无 explanation"}</p>
+        <h3>Advice</h3>
+        <ul>${advice.map(item => `<li>${item}</li>`).join("") || "<li>无 advice</li>"}</ul>
+        <h3>Confidence</h3>
+        <p>${output.confidence_note || "无 confidence note"}</p>
+      `;
+      analysisResult.appendChild(box);
+    }
+
+    async function loadUsers() {
+      setStatus("正在加载用户列表...");
+      const q = searchInput.value.trim();
+      const query = new URLSearchParams({ limit: "50" });
+      if (q) {
+        query.set("q", q);
+      }
+      const payload = await api(`/api/v1/users?${query.toString()}`);
+      state.users = payload.items || [];
+      renderUsers();
+      setStatus(`已加载 ${payload.items.length} 个用户。`);
+      if (state.users.length) {
+        await selectUser(state.users[0], false);
+      } else {
+        state.selectedUser = null;
+        state.selectedProfile = null;
+        state.timeline = [];
+        state.selectedSegment = null;
+        state.selectedDetail = null;
+        state.selectedAnalysis = null;
+        renderProfileSummary();
+        renderTimeline();
+        renderDetail();
+      }
+    }
+
+    async function selectUser(user, updateUserList = true) {
+      state.selectedUser = user;
+      state.selectedSegment = null;
+      state.selectedDetail = null;
+      state.selectedAnalysis = null;
+      if (updateUserList) {
+        renderUsers();
+      }
+      timelineLabel.textContent = user.external_user_id;
+      setStatus(`正在加载 ${user.external_user_id} 的画像和时间线...`);
+      const [profile, timeline] = await Promise.all([
+        api(`/api/v1/users/${user.id}/profile`),
+        api(`/api/v1/users/${user.id}/timeline?limit=40`),
+      ]);
+      state.selectedProfile = profile;
+      state.timeline = timeline.items || [];
+      renderProfileSummary();
+      renderTimeline();
+      renderDetail();
+      setStatus(`已选择 ${user.external_user_id}，时间线共 ${state.timeline.length} 条。`);
+    }
+
+    async function selectSegment(item) {
+      state.selectedSegment = item;
+      renderTimeline();
+      setStatus(`正在加载 segment ${item.segment_id} ...`);
+      const [detail, latestAnalysis] = await Promise.all([
+        api(`/api/v1/segments/${item.segment_id}`),
+        apiMaybe(`/api/v1/segments/${item.segment_id}/latest-analysis`),
+      ]);
+      state.selectedDetail = detail;
+      state.selectedAnalysis = latestAnalysis;
+      renderDetail();
+      setStatus(
+        latestAnalysis
+          ? `已加载 segment ${item.segment_id}，并读取到最近一次分析结果。`
+          : `已加载 segment ${item.segment_id}，这条记录还没有历史分析结果。`
+      );
+    }
+
+    async function runAnalysis() {
+      if (!state.selectedSegment) {
+        return;
+      }
+      analyzeButton.disabled = true;
+      setStatus(`正在分析 ${state.selectedSegment.segment_id} ...`);
+      try {
+        state.selectedAnalysis = await api(`/api/v1/segments/${state.selectedSegment.segment_id}/analyze`, {
+          method: "POST",
+          body: JSON.stringify({
+            user_query: analysisQuery.value.trim() || "请解释这一段 Fitbit 数据，并给出个性化建议。",
+          }),
+        });
+        renderAnalysis();
+        setStatus(`分析完成，status=${state.selectedAnalysis.status}。`);
+      } catch (error) {
+        setStatus(`分析失败: ${error.message}`);
+      } finally {
+        analyzeButton.disabled = false;
+      }
+    }
+
+    document.getElementById("searchButton").addEventListener("click", loadUsers);
+    document.getElementById("refreshButton").addEventListener("click", loadUsers);
+    analyzeButton.addEventListener("click", runAnalysis);
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        loadUsers();
+      }
+    });
+
+    loadUsers().catch((error) => {
+      setStatus(`初始化失败: ${error.message}`);
+    });
+  </script>
+</body>
+</html>
