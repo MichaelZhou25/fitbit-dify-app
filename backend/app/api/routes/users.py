@@ -12,7 +12,14 @@ from app.schemas.user import (
     UserProfileUpdateRequest,
 )
 from app.services.memory_service import build_user_timeline
-from app.services.user_service import create_user, get_profile_or_404, list_users, update_profile
+from app.services.user_service import (
+    bootstrap_profile,
+    create_user,
+    get_profile_or_404,
+    get_user_by_external_id_or_404,
+    list_users,
+    update_profile,
+)
 
 router = APIRouter()
 
@@ -38,6 +45,14 @@ def list_users_endpoint(
     )
 
 
+@router.get("/by-external-id/{external_user_id}", response_model=UserResponse)
+def get_user_by_external_id_endpoint(external_user_id: str, db: Session = Depends(get_db)) -> UserResponse:
+    try:
+        return UserResponse.model_validate(get_user_by_external_id_or_404(db=db, external_user_id=external_user_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
 @router.get("/{user_id}/profile", response_model=ProfileResponse)
 def get_profile_endpoint(user_id: str, db: Session = Depends(get_db)) -> ProfileResponse:
     profile = get_profile_or_404(db=db, user_id=user_id)
@@ -51,6 +66,20 @@ def update_profile_endpoint(
     db: Session = Depends(get_db),
 ) -> ProfileResponse:
     profile = update_profile(db=db, user_id=user_id, payload=payload)
+    return ProfileResponse.model_validate(profile)
+
+
+@router.post("/{user_id}/bootstrap-profile", response_model=ProfileResponse)
+def bootstrap_profile_endpoint(user_id: str, db: Session = Depends(get_db)) -> ProfileResponse:
+    try:
+        profile = bootstrap_profile(db=db, user_id=user_id)
+    except ValueError as exc:
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if str(exc) == "User not found"
+            else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return ProfileResponse.model_validate(profile)
 
 

@@ -15,10 +15,15 @@ class ProfileSeed:
     system_prompt_prefix: str
 
 
-def build_fitabase_profile_seed(segments: Iterable[Any], external_user_id: str) -> ProfileSeed:
+def build_profile_seed(
+    segments: Iterable[Any],
+    external_user_id: str,
+    *,
+    source: str,
+) -> ProfileSeed:
     segment_list = list(segments)
     if not segment_list:
-        raise ValueError("At least one segment is required to build a fitabase profile seed.")
+        raise ValueError("At least one segment is required to build a profile seed.")
 
     daily = defaultdict(
         lambda: {
@@ -115,7 +120,7 @@ def build_fitabase_profile_seed(segments: Iterable[Any], external_user_id: str) 
     source_user_id = external_user_id.removeprefix("fitabase_")
 
     profile = {
-        "source": "fitabase_merged",
+        "source": source,
         "source_user_id": source_user_id,
         "primary_goal": primary_goal,
         "activity_level": activity_level,
@@ -161,12 +166,11 @@ def build_fitabase_profile_seed(segments: Iterable[Any], external_user_id: str) 
     }
 
     system_prompt_prefix = (
-        "你正在为一位 Fitbit 用户提供个性化疲劳与恢复分析。"
-        f"该用户的历史基线显示其属于{_activity_level_cn(activity_level)}，"
-        f"活动高峰通常出现在{_peak_window_cn(peak_activity_window)}，"
-        f"当前主要目标是{_goal_cn(primary_goal)}。"
-        "优先结合其步数、活动分钟、久坐时间、睡眠和心率基线解释模型输出，"
-        "不要做医学诊断；如果睡眠追踪或心率覆盖不足，请明确说明不确定性。"
+        f"You are providing personalized Fitbit fatigue and recovery analysis. "
+        f"This user is generally {_activity_level_label(activity_level)} with peak activity in the "
+        f"{_peak_window_label(peak_activity_window)} and a primary goal of {_goal_label(primary_goal)}. "
+        "Prioritize step count, active minutes, sedentary time, sleep, and heart-rate baseline when explaining "
+        "the model output. Do not provide medical diagnosis. If the evidence is limited, clearly state uncertainty."
     )
 
     return ProfileSeed(
@@ -175,6 +179,14 @@ def build_fitabase_profile_seed(segments: Iterable[Any], external_user_id: str) 
         thresholds=thresholds,
         baseline_stats=baseline_stats,
         system_prompt_prefix=system_prompt_prefix,
+    )
+
+
+def build_fitabase_profile_seed(segments: Iterable[Any], external_user_id: str) -> ProfileSeed:
+    return build_profile_seed(
+        segments=segments,
+        external_user_id=external_user_id,
+        source="fitabase_merged",
     )
 
 
@@ -280,31 +292,31 @@ def _pick_primary_goal(
     return "fatigue_management"
 
 
-def _activity_level_cn(label: str) -> str:
+def _activity_level_label(label: str) -> str:
     mapping = {
-        "sedentary": "久坐偏多型",
-        "lightly_active": "轻度活跃型",
-        "moderately_active": "中度活跃型",
-        "highly_active": "高活跃型",
+        "sedentary": "sedentary",
+        "lightly_active": "lightly active",
+        "moderately_active": "moderately active",
+        "highly_active": "highly active",
     }
-    return mapping.get(label, "一般活跃型")
+    return mapping.get(label, "moderately active")
 
 
-def _peak_window_cn(label: str) -> str:
+def _peak_window_label(label: str) -> str:
     mapping = {
-        "morning": "上午",
-        "afternoon": "下午",
-        "evening": "傍晚到夜间",
-        "overnight": "夜间到凌晨",
+        "morning": "morning",
+        "afternoon": "afternoon",
+        "evening": "evening",
+        "overnight": "overnight",
     }
-    return mapping.get(label, "白天")
+    return mapping.get(label, "daytime")
 
 
-def _goal_cn(label: str) -> str:
+def _goal_label(label: str) -> str:
     mapping = {
-        "sleep_improvement": "改善睡眠与恢复",
-        "activity_increase": "提升日常活动量",
-        "endurance_building": "增加稳定运动时长",
-        "fatigue_management": "管理疲劳并维持稳定状态",
+        "sleep_improvement": "improving sleep",
+        "activity_increase": "increasing daily activity",
+        "endurance_building": "building endurance",
+        "fatigue_management": "managing fatigue",
     }
-    return mapping.get(label, "管理疲劳并维持稳定状态")
+    return mapping.get(label, "managing fatigue")

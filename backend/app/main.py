@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 
 from app.api.router import api_router
@@ -15,6 +16,14 @@ app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description="Backend scaffold for Fitbit segment ingestion, prediction, and Dify analysis.",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.resolved_cors_allow_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

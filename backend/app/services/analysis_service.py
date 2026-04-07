@@ -39,6 +39,7 @@ def analyze_segment(db: Session, segment_id: str, payload: AnalyzeRequest) -> An
     dify_result, status, workflow_run_id = dify_client.run_workflow(dify_payload)
     if status == "sent":
         llm_output = extract_workflow_outputs(dify_result)
+        stored_dify_output = dify_result
     else:
         llm_output = build_local_fallback_output(
             raw_payload=segment.raw_payload_json,
@@ -50,13 +51,17 @@ def analyze_segment(db: Session, segment_id: str, payload: AnalyzeRequest) -> An
             status=status,
             status_message=dify_result.get("message"),
         )
+        stored_dify_output = {
+            **dify_result,
+            "fallback_output": llm_output,
+        }
 
     dify_run = DifyRun(
         user_id=segment.user_id,
         segment_id=segment.id,
         workflow_run_id=workflow_run_id,
         dify_inputs_json=dify_payload,
-        dify_outputs_json=dify_result,
+        dify_outputs_json=stored_dify_output,
         status=status,
     )
     db.add(dify_run)
@@ -91,6 +96,9 @@ def get_latest_analysis_for_segment(db: Session, segment_id: str) -> SavedAnalys
 def build_saved_analysis_response(run: DifyRun) -> SavedAnalysisResponse:
     dify_payload = run.dify_inputs_json or {}
     raw_output = run.dify_outputs_json or {}
+    llm_output = raw_output.get("fallback_output")
+    if not isinstance(llm_output, dict):
+        llm_output = extract_workflow_outputs(raw_output)
     return SavedAnalysisResponse(
         dify_run_id=run.id,
         workflow_run_id=run.workflow_run_id,
@@ -99,7 +107,7 @@ def build_saved_analysis_response(run: DifyRun) -> SavedAnalysisResponse:
         user_id=run.user_id,
         model_output=_model_output_from_dify_payload(dify_payload),
         dify_payload=dify_payload,
-        llm_output=extract_workflow_outputs(raw_output),
+        llm_output=llm_output,
         status=run.status,
         raw_dify_output=run.dify_outputs_json,
     )

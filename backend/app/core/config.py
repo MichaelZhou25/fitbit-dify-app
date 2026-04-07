@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_host: str = "0.0.0.0"
     app_port: int = 8000
+    cors_allow_origins: str = "*"
 
     database_url: str = f"sqlite:///{(BACKEND_DIR / 'app.db').as_posix()}"
 
@@ -32,6 +33,9 @@ class Settings(BaseSettings):
     def resolved_database_url(self) -> str:
         sqlite_prefix = "sqlite:///"
         if not self.database_url.startswith(sqlite_prefix):
+            postgresql_prefix = "postgresql://"
+            if self.database_url.startswith(postgresql_prefix):
+                return self.database_url.replace(postgresql_prefix, "postgresql+psycopg://", 1)
             return self.database_url
 
         raw_path = self.database_url.removeprefix(sqlite_prefix)
@@ -41,11 +45,27 @@ class Settings(BaseSettings):
         return f"sqlite:///{(BACKEND_DIR / candidate).resolve().as_posix()}"
 
     @property
+    def database_backend(self) -> str:
+        url = self.resolved_database_url.lower()
+        if url.startswith("sqlite"):
+            return "sqlite"
+        if url.startswith("postgresql"):
+            return "postgresql"
+        return "other"
+
+    @property
     def resolved_model_artifact_path(self) -> Path:
         path = Path(self.model_artifact_path)
         if not path.is_absolute():
             path = REPO_ROOT / path
         return path.resolve()
+
+    @property
+    def resolved_cors_allow_origins(self) -> list[str]:
+        raw = self.cors_allow_origins.strip()
+        if not raw or raw == "*":
+            return ["*"]
+        return [item.strip() for item in raw.split(",") if item.strip()]
 
 
 @lru_cache

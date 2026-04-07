@@ -41,6 +41,36 @@ class SavedAnalysisResponseTest(unittest.TestCase):
         self.assertEqual(response.llm_output["summary"], "high fatigue")
         self.assertEqual(response.status, "sent")
 
+    def test_build_saved_analysis_response_prefers_fallback_output_for_skipped_runs(self) -> None:
+        run = SimpleNamespace(
+            id="run_002",
+            workflow_run_id=None,
+            created_at=datetime(2026, 4, 4, 19, 0, 0),
+            segment_id="segment_002",
+            user_id="user_002",
+            status="skipped",
+            dify_inputs_json={
+                "inputs": {
+                    "top_label": "fatigue_low",
+                    "probability_json": '{"fatigue_low": 0.7, "fatigue_high": 0.3}',
+                }
+            },
+            dify_outputs_json={
+                "message": "Dify API key is empty.",
+                "fallback_output": {
+                    "summary": "local fallback summary",
+                    "explanation": "local fallback explanation",
+                    "personalized_advice": ["sleep earlier"],
+                },
+            },
+        )
+
+        response = build_saved_analysis_response(run)
+
+        self.assertEqual(response.status, "skipped")
+        self.assertEqual(response.llm_output["summary"], "local fallback summary")
+        self.assertEqual(response.llm_output["explanation"], "local fallback explanation")
+
 
 if __name__ == "__main__":
     unittest.main()

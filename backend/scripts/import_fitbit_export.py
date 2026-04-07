@@ -3,13 +3,16 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tempfile
+import uuid
 from pathlib import Path
+from zipfile import BadZipFile, ZipFile
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from sqlalchemy import select
+from sqlalchemy import insert, select
 
 from app.db.session import SessionLocal, create_db_and_tables
 from app.importers.fitabase_merged import FitabaseImportResult, load_fitabase_merged_export
@@ -66,79 +69,109 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     create_db_and_tables()
-    mode = detect_export_mode(args.export_dir)
-    source_type = args.source_type or ("fitabase_merged" if mode == "fitabase_merged" else "fitbit_export")
+    with prepared_export_dir(args.export_dir) as export_path:
+        mode = detect_export_mode(export_path)
+        source_type = args.source_type or ("fitabase_merged" if mode == "fitabase_merged" else "fitbit_export")
 
-    if mode == "fitabase_merged":
-        result = load_fitabase_merged_export(
-            export_path=args.export_dir,
+        if mode == "fitabase_merged":
+            result = load_fitabase_merged_export(
+                export_path=export_path,
+                timezone=args.timezone,
+                steps_per_active_minute=args.steps_per_active_minute,
+            )
+            return run_fitabase_import(args=args, result=result, source_type=source_type)
+
+        if not args.external_user_id:
+            raise SystemExit("--external-user-id is required for single-user Fitbit exports.")
+
+        result = load_fitbit_export(
+            export_path=export_path,
             timezone=args.timezone,
             steps_per_active_minute=args.steps_per_active_minute,
+            default_calories_per_step=args.calories_per_step,
         )
-        return run_fitabase_import(args=args, result=result, source_type=source_type)
 
-    if not args.external_user_id:
-        raise SystemExit("--external-user-id is required for single-user Fitbit exports.")
+        if not result.segments:
+            print_summary(
+                mode=mode,
+                result=result,
+                created_user_id=None,
+                inserted=0,
+                skipped_existing=0,
+                dry_run=args.dry_run,
+                preview_count=args.print_first,
+            )
+            print(
+                "No hourly segments were generated. Check that your export contains intraday timestamps.",
+                file=sys.stderr,
+            )
+            return 1
 
-    result = load_fitbit_export(
-        export_path=args.export_dir,
-        timezone=args.timezone,
-        steps_per_active_minute=args.steps_per_active_minute,
-        default_calories_per_step=args.calories_per_step,
-    )
+        with SessionLocal() as db:
+            existing_user = db.scalar(select(User).where(User.external_user_id == args.external_user_id))
 
-    if not result.segments:
+            if args.dry_run:
+                user_id = existing_user.id if existing_user else None
+                inserted = 0
+                skipped_existing = _count_existing_segments(
+                    db=db,
+                    user_id=user_id,
+                    source_type=source_type,
+                    result=result,
+                )
+            else:
+                user = create_user(
+                    db=db,
+                    payload=UserCreateRequest(
+                        external_user_id=args.external_user_id,
+                        name=args.name,
+                        timezone=args.timezone,
+                    ),
+                )
+                inserted, skipped_existing = _persist_segments(
+                    db=db,
+                    user_id=user.id,
+                    source_type=source_type,
+                    result=result,
+                )
+                user_id = user.id
+
         print_summary(
             mode=mode,
             result=result,
-            created_user_id=None,
-            inserted=0,
-            skipped_existing=0,
+            created_user_id=user_id,
+            inserted=inserted,
+            skipped_existing=skipped_existing,
             dry_run=args.dry_run,
             preview_count=args.print_first,
         )
-        print("No hourly segments were generated. Check that your export contains intraday timestamps.", file=sys.stderr)
-        return 1
+        return 0
 
-    with SessionLocal() as db:
-        existing_user = db.scalar(select(User).where(User.external_user_id == args.external_user_id))
 
-        if args.dry_run:
-            user_id = existing_user.id if existing_user else None
-            inserted = 0
-            skipped_existing = _count_existing_segments(
-                db=db,
-                user_id=user_id,
-                source_type=source_type,
-                result=result,
-            )
-        else:
-            user = create_user(
-                db=db,
-                payload=UserCreateRequest(
-                    external_user_id=args.external_user_id,
-                    name=args.name,
-                    timezone=args.timezone,
-                ),
-            )
-            inserted, skipped_existing = _persist_segments(
-                db=db,
-                user_id=user.id,
-                source_type=source_type,
-                result=result,
-            )
-            user_id = user.id
+class prepared_export_dir:
+    def __init__(self, export_path: Path) -> None:
+        self.export_path = export_path
+        self._temp_dir: tempfile.TemporaryDirectory[str] | None = None
+        self._resolved_path = export_path
 
-    print_summary(
-        mode=mode,
-        result=result,
-        created_user_id=user_id,
-        inserted=inserted,
-        skipped_existing=skipped_existing,
-        dry_run=args.dry_run,
-        preview_count=args.print_first,
-    )
-    return 0
+    def __enter__(self) -> Path:
+        if not self.export_path.is_file() or self.export_path.suffix.lower() != ".zip":
+            return self.export_path
+
+        self._temp_dir = tempfile.TemporaryDirectory()
+        extract_dir = Path(self._temp_dir.name) / "extracted"
+        extract_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            with ZipFile(self.export_path) as archive:
+                archive.extractall(extract_dir)
+        except BadZipFile as exc:
+            raise SystemExit(f"Invalid zip archive: {self.export_path}") from exc
+        self._resolved_path = extract_dir
+        return extract_dir
+
+    def __exit__(self, exc_type, exc, exc_tb) -> None:
+        if self._temp_dir is not None:
+            self._temp_dir.cleanup()
 
 
 def run_fitabase_import(*, args: argparse.Namespace, result: FitabaseImportResult, source_type: str) -> int:
@@ -213,6 +246,9 @@ def run_fitabase_import(*, args: argparse.Namespace, result: FitabaseImportResul
 
 def detect_export_mode(export_dir: Path) -> str:
     if export_dir.is_file() and export_dir.name.lower().endswith(".zip"):
+        with ZipFile(export_dir) as archive:
+            if any(name.lower().endswith("_merged.csv") for name in archive.namelist()):
+                return "fitabase_merged"
         return "fitbit_export"
 
     merged_paths = list(export_dir.rglob("*_merged.csv"))
@@ -231,6 +267,7 @@ def _persist_segments(
     existing_keys = _load_existing_keys(db=db, user_id=user_id, source_type=source_type)
     inserted = 0
     skipped_existing = 0
+    rows_to_insert: list[dict] = []
 
     for segment in result.segments:
         key = _segment_identity(segment.segment_start, source_type)
@@ -238,18 +275,24 @@ def _persist_segments(
             skipped_existing += 1
             continue
 
-        db.add(
-            RawSegment(
-                user_id=user_id,
-                segment_start=segment.segment_start,
-                segment_end=segment.segment_end,
-                granularity="1h",
-                source_type=source_type,
-                raw_payload_json=segment.raw_payload,
-            )
+        rows_to_insert.append(
+            {
+                "id": str(uuid.uuid4()),
+                "user_id": user_id,
+                "segment_start": segment.segment_start,
+                "segment_end": segment.segment_end,
+                "granularity": "1h",
+                "source_type": source_type,
+                "raw_payload_json": segment.raw_payload,
+            }
         )
         existing_keys.add(key)
         inserted += 1
+
+    for batch_start in range(0, len(rows_to_insert), 1000):
+        batch = rows_to_insert[batch_start : batch_start + 1000]
+        if batch:
+            db.execute(insert(RawSegment), batch)
 
     db.commit()
     return inserted, skipped_existing
@@ -259,6 +302,7 @@ def _persist_imported_segments(*, db, user_id: str, source_type: str, segments) 
     existing_keys = _load_existing_keys(db=db, user_id=user_id, source_type=source_type)
     inserted = 0
     skipped_existing = 0
+    rows_to_insert: list[dict] = []
 
     for segment in segments:
         key = _segment_identity(segment.segment_start, source_type)
@@ -266,18 +310,24 @@ def _persist_imported_segments(*, db, user_id: str, source_type: str, segments) 
             skipped_existing += 1
             continue
 
-        db.add(
-            RawSegment(
-                user_id=user_id,
-                segment_start=segment.segment_start,
-                segment_end=segment.segment_end,
-                granularity="1h",
-                source_type=source_type,
-                raw_payload_json=segment.raw_payload,
-            )
+        rows_to_insert.append(
+            {
+                "id": str(uuid.uuid4()),
+                "user_id": user_id,
+                "segment_start": segment.segment_start,
+                "segment_end": segment.segment_end,
+                "granularity": "1h",
+                "source_type": source_type,
+                "raw_payload_json": segment.raw_payload,
+            }
         )
         existing_keys.add(key)
         inserted += 1
+
+    for batch_start in range(0, len(rows_to_insert), 1000):
+        batch = rows_to_insert[batch_start : batch_start + 1000]
+        if batch:
+            db.execute(insert(RawSegment), batch)
 
     db.commit()
     return inserted, skipped_existing

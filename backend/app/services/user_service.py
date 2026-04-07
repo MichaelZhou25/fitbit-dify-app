@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.raw_segment import RawSegment
 from app.models.user import User
 from app.models.user_profile import UserProfile
+from app.services.profile_bootstrap_service import build_profile_seed
 from app.schemas.user import UserCreateRequest, UserProfileUpdateRequest
 
 
@@ -28,6 +29,13 @@ def create_user(db: Session, payload: UserCreateRequest) -> User:
 
 def get_user_or_404(db: Session, user_id: str) -> User:
     user = db.get(User, user_id)
+    if not user:
+        raise ValueError("User not found")
+    return user
+
+
+def get_user_by_external_id_or_404(db: Session, external_user_id: str) -> User:
+    user = db.scalar(select(User).where(User.external_user_id == external_user_id))
     if not user:
         raise ValueError("User not found")
     return user
@@ -100,6 +108,37 @@ def update_profile(db: Session, user_id: str, payload: UserProfileUpdateRequest)
     profile.thresholds_json = payload.thresholds
     profile.baseline_stats_json = payload.baseline_stats
     profile.system_prompt_prefix = payload.system_prompt_prefix
+    db.add(profile)
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+
+def bootstrap_profile(db: Session, user_id: str) -> UserProfile:
+    user = get_user_or_404(db=db, user_id=user_id)
+    profile = get_profile_or_404(db=db, user_id=user_id)
+    segments = list(
+        db.scalars(
+            select(RawSegment)
+            .where(RawSegment.user_id == user.id)
+            .order_by(RawSegment.segment_start.asc())
+        )
+    )
+    if not segments:
+        raise ValueError("User has no segments to bootstrap a profile from")
+
+    source = "fitabase_merged" if user.external_user_id.startswith("fitabase_") else "fitbit_export"
+    seed = build_profile_seed(
+        segments=segments,
+        external_user_id=user.external_user_id,
+        source=source,
+    )
+
+    profile.profile_json = seed.profile
+    profile.goals_json = seed.goals
+    profile.thresholds_json = seed.thresholds
+    profile.baseline_stats_json = seed.baseline_stats
+    profile.system_prompt_prefix = seed.system_prompt_prefix
     db.add(profile)
     db.commit()
     db.refresh(profile)

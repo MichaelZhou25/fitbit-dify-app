@@ -25,6 +25,10 @@ pip install -r requirements.txt
 Copy-Item ..\.env.example .env
 ```
 
+If you want to use Supabase instead of the local SQLite file, set `DATABASE_URL`
+to your Supabase Postgres Session Pooler connection string in `backend/.env`.
+Use the `postgresql://...` form so SQLAlchemy can parse it correctly.
+
 3. Run the API:
 
 ```powershell
@@ -38,6 +42,32 @@ uvicorn app.main:app --reload
 5. Open the dashboard:
 
 `http://127.0.0.1:8000/dashboard`
+
+## Flutter frontend
+
+A Flutter MVP frontend now lives in [`frontend/`](frontend). It is a single-user, analysis-first client that supports:
+
+- latest analysis home screen
+- segment timeline and detail pages
+- read-only profile view
+- zip upload import flow through backend APIs
+
+Run it with:
+
+```powershell
+cd frontend
+flutter pub get --offline
+flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000 --dart-define=FITBIT_EXTERNAL_USER_ID=fitbit_u001
+```
+
+The app uses these new backend endpoints:
+
+- `GET /api/v1/users/by-external-id/{external_user_id}`
+- `POST /api/v1/users/{user_id}/bootstrap-profile`
+- `POST /api/v1/imports/fitbit`
+
+The frontend does not need any database-specific configuration. As long as the
+backend can reach Supabase, the existing Flutter flows continue to work.
 
 ## Import Fitbit export data
 
@@ -73,9 +103,23 @@ Run without `--external-user-id` to process every matching segment that is still
 
 ## Current scope
 
-- The database defaults to SQLite for local setup. Switch `DATABASE_URL` to PostgreSQL for real usage.
+- The database defaults to SQLite for local setup. For shared or deployed usage,
+  set `DATABASE_URL` to a Supabase Postgres Session Pooler connection string.
 - The predictor falls back to a deterministic heuristic when no trained XGBoost model artifact is present.
 - Dify calls are skipped when `DIFY_API_KEY` is empty. The API still returns the assembled payload so you can inspect it.
+
+## Supabase setup
+
+1. Create a Supabase project and open `Project Settings -> Database`.
+2. Copy the `Session Pooler` connection string.
+3. Set `DATABASE_URL=postgresql://...` in `backend/.env`.
+4. Start the backend once so `Base.metadata.create_all()` can create the tables in Supabase.
+5. Re-import your Fitbit/Fitabase zip data into the empty Supabase database.
+6. Run profile bootstrap and segment analysis as usual.
+
+This project does not migrate existing local SQLite data into Supabase. The
+recommended workflow is to start with an empty Supabase database and re-import
+raw zip data through the existing import flow.
 
 ## Suggested next steps
 
