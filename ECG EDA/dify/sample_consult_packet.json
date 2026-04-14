@@ -1,0 +1,52 @@
+{
+  "subject_id": "demo-001",
+  "window_start_s": 0,
+  "window_end_s": 60,
+  "risk": {
+    "risk_score": 0.81,
+    "risk_level": "high",
+    "uncertainty": 0.18,
+    "quality_flag": "ok",
+    "model_name": "logistic-regression-v0",
+    "top_features": [
+      "hr_mean",
+      "rmssd_ms",
+      "eda_scr_density",
+      "temp_delta_baseline"
+    ]
+  },
+  "quality": {
+    "ecg_quality": 0.87,
+    "eda_quality": 0.91,
+    "temperature_quality": 0.95,
+    "acc_quality": 0.98,
+    "overall_quality": 0.93,
+    "motion_artifact_ratio": 0.04,
+    "is_worn": true,
+    "is_usable": true,
+    "notes": []
+  },
+  "feature_snapshot": {
+    "hr_mean": 104.8,
+    "rmssd_ms": 16.2,
+    "sdnn_ms": 23.5,
+    "eda_scr_density": 6.8,
+    "eda_scl_mean": 3.4,
+    "temp_delta_baseline": 0.38,
+    "motion_ratio": 0.04
+  },
+  "recent_trend": {
+    "risk_score_delta": 0.12,
+    "uncertainty_delta": -0.05
+  },
+  "rule_triggers": [
+    "elevated_hr",
+    "low_hrv",
+    "high_eda_reactivity",
+    "temperature_above_baseline"
+  ],
+  "questionnaire": {
+    "gad7": 8
+  }
+}
+

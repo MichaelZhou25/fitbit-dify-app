@@ -1,0 +1,140 @@
+Metadata-Version: 2.4
+Name: anxiety-monitor-v0
+Version: 0.1.0
+Summary: V0 backend for ECG/EDA/temperature anxiety risk estimation with Dify-ready consultation packets.
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.115
+Requires-Dist: numpy>=1.26
+Requires-Dist: pandas>=2.2
+Requires-Dist: pydantic>=2.7
+Requires-Dist: scikit-learn>=1.4
+Requires-Dist: scipy>=1.12
+Requires-Dist: uvicorn>=0.30
+Provides-Extra: dev
+Requires-Dist: pytest>=8.2; extra == "dev"
+
+# Anxiety Monitor V0
+
+`Anxiety Monitor V0` 是一个从零搭建的后端算法骨架，用于把 `ECG + EDA + 温度 (+ ACC)` 原始信号处理成：
+
+- `FeaturePacket`
+- `RiskPacket`
+- `ConsultPacket`
+
+然后把结构化结果交给 Dify 做后验会诊、解释和反馈。
+
+## 当前实现内容
+
+- 原始多模态信号窗口化
+- ECG / EDA / 温度 / ACC 预处理与质量控制
+- 手工特征提取
+- 可解释基线模型 `LogisticRegression`
+- 无训练依赖的启发式风险引擎
+- FastAPI 推理接口
+- WESAD 训练脚本
+- Dify Workflow / Chatflow 落地蓝图
+
+## 项目结构
+
+```text
+src/anxiety_monitor/
+  api.py
+  datasets/wesad.py
+  dify.py
+  features.py
+  model.py
+  packets.py
+  pipeline.py
+  preprocessing.py
+scripts/
+  run_demo.py
+  train_wesad.py
+dify/
+  chatflow_blueprint.md
+  sample_consult_packet.json
+  workflow_blueprint.md
+tests/
+  test_pipeline.py
+```
+
+## 快速开始
+
+### 1. 安装
+
+```bash
+pip install -e .
+```
+
+### 2. 运行演示
+
+```bash
+python scripts/run_demo.py
+```
+
+### 3. 启动 API
+
+```bash
+uvicorn anxiety_monitor.api:app --reload
+```
+
+### 4. 训练 WESAD 基线模型
+
+```bash
+python scripts/train_wesad.py --wesad-root C:\path\to\WESAD
+```
+
+默认使用以下代理标签映射：
+
+- `baseline(1)` -> `low`
+- `amusement(3)` -> `medium`
+- `stress(2)` -> `high`
+- `meditation(4)` -> `low`
+
+说明：
+
+- 这只是 V0 的工程代理标签，不代表“amusement 等于焦虑”。
+- 它的作用是先把信号链路、质量控制和多级风险输出跑通。
+- 后续换成真正的焦虑量表标签时，不需要重写后端骨架。
+
+## API 示例
+
+```json
+{
+  "subject_id": "demo-001",
+  "window_start_s": 0,
+  "window_end_s": 60,
+  "ecg_hz": 250,
+  "eda_hz": 4,
+  "temperature_hz": 4,
+  "acc_hz": 32,
+  "ecg": [0.02, 0.01, 0.17],
+  "eda": [1.0, 1.1, 1.2],
+  "temperature": [36.4, 36.4, 36.5],
+  "acc": [[0.0, 0.01, 0.98], [0.02, 0.03, 1.01]],
+  "questionnaire": {
+    "gad7": 8
+  }
+}
+```
+
+## Dify 怎么接
+
+这套后端默认不让 Dify 直接处理原始波形。推荐方式是：
+
+1. Python 后端做预处理、特征提取和风险估计
+2. Dify Workflow 接收 `ConsultPacket`
+3. Dify 输出面向用户 / 医生的解释文本和行动建议
+
+具体节点设计见：
+
+- [dify/workflow_blueprint.md](dify/workflow_blueprint.md)
+- [dify/chatflow_blueprint.md](dify/chatflow_blueprint.md)
+
+## 设计原则
+
+- 先保证 `signal quality`
+- 低质量窗口宁可拒判，也不输出高置信结论
+- 主模型负责风险分数，Agent 负责解释和追问
+- 结构化接口优先于自然语言拼接
+

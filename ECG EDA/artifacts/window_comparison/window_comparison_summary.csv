@@ -1,0 +1,4 @@
+window_config,n_windows,n_subjects,best_loso_model,best_loso_feature_set,best_loso_subject_macro_f1_mean,best_loso_subject_macro_f1_std,best_random_model,best_random_feature_set,best_random_macro_f1
+60s_30s,793,15,Boosting,ECG+EDA+TEMP,0.476536300655516,0.15096554655457,RF,ECG+EDA+TEMP,0.8951414368874961
+30s_15s,1755,15,SVM,ECG+EDA+TEMP,0.4469507034971491,0.1438887889908979,RF,ECG+EDA+TEMP,0.9066860320770646
+10s_5s,5760,15,LR,EDA-only,0.4531223358802219,0.1451381574319349,RF,ECG+EDA+TEMP,0.9413420352749816
